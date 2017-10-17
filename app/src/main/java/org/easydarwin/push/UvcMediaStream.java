@@ -39,6 +39,7 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
+import dagger.Module;
 import dagger.Provides;
 
 import static org.easydarwin.easypusher.EasyApplication.BUS;
@@ -47,6 +48,7 @@ import static org.easydarwin.easypusher.EasyApplication.BUS;
  * Created by Zheming.xin on 2017/10/17.
  */
 
+@Module
 public class UvcMediaStream {
     private static final boolean VERBOSE = BuildConfig.DEBUG;
     private static final int SWITCH_CAMERA = 11;
