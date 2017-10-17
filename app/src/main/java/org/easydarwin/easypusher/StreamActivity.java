@@ -687,6 +687,7 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
         }
         boolean isStreaming = mMediaStream != null && mMediaStream.isStreaming();
         mMediaStream.stopPreview();
+        mMediaStream.destroyCamera();
         if (isStreaming && PreferenceManager.getDefaultSharedPreferences(StreamActivity.this)
                 .getBoolean("key_enable_background_camera", true)) {
             // active background streaming
