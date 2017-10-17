@@ -103,56 +103,11 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
     };
     private boolean mNeedGrantedPermission;
 
-    private USBCameraManager mUSBManager;
+    private boolean mServiceConnected = false;
+
+    private boolean isUsbDeviceConnected = false;
+
     private UVCCameraTextureView mUVCCameraView;
-
-    private boolean isRequest;
-
-    /**
-     * USB设备事件监听器
-     * */
-    private USBCameraManager.OnMyDevConnectListener listener = new USBCameraManager.OnMyDevConnectListener() {
-        // 插入USB设备
-        @Override
-        public void onAttachDev(UsbDevice device) {
-            Log.d("Test","onAttachDev");
-            if(mUSBManager == null || mUSBManager.getUsbDeviceCount() == 0){
-                showShortMsg("未检测到USB摄像头设备");
-                return;
-            }
-            // 请求打开摄像头
-            if(!isRequest){
-                isRequest = true;
-                if(mUSBManager != null){
-                    mUSBManager.requestPermission(0);
-                }
-            }
-        }
-
-        // 拔出USB设备
-        @Override
-        public void onDettachDev(UsbDevice device) {
-            Log.d("Test","onDettachDev");
-            if(isRequest){
-                // 关闭摄像头
-                isRequest = false;
-                mUSBManager.closeCamera();
-                showShortMsg(device.getDeviceName()+"已拨出");
-            }
-        }
-
-        // 连接USB设备成功
-        @Override
-        public void onConnectDev(UsbDevice device) {
-            Log.d("Test","onConnectDev");
-        }
-
-        // 与USB设备断开连接
-        @Override
-        public void onDisConnectDev(UsbDevice device) {
-            Log.d("Test","onDisConnectDev");
-        }
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -160,7 +115,6 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         BUS.register(this);
-        mUSBManager = USBCameraManager.getInstance();
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.CAMERA,android.Manifest.permission.RECORD_AUDIO}, REQUEST_CAMERA_PERMISSION);
@@ -169,13 +123,27 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
         } else {
             // resume..
         }
+
+        spnResolution = (Spinner) findViewById(R.id.spn_resolution);
+        streamStat = (TextView) findViewById(R.id.stream_stat);
+        streamStat.setText(null);
+        txtStatus = (TextView) findViewById(R.id.txt_stream_status);
+        btnSwitch = (Button) findViewById(R.id.btn_switch);
+        btnSwitch.setOnClickListener(this);
+        btnSetting = (Button) findViewById(R.id.btn_setting);
+        btnSetting.setOnClickListener(this);
+        btnSwitchCemera = (ImageButton) findViewById(R.id.btn_switchCamera);
+        btnSwitchCemera.setOnClickListener(this);
+        txtStreamAddress = (TextView) findViewById(R.id.txt_stream_address);
+        textRecordTick = (TextView) findViewById(R.id.tv_start_record);
+        mUVCCameraView = (UVCCameraTextureView) findViewById(R.id.sv_surfaceview);
     }
 
     @Override
     protected void onStart() {
         // 注册USB事件广播监听器
-        if(mUSBManager != null){
-            mUSBManager.registerUSB();
+        if(mMediaStream != null){
+            mMediaStream.registerUSB();
         }
         // 恢复Camera预览
         if(mUVCCameraView != null){
@@ -187,8 +155,8 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
     @Override
     protected void onStop() {
         // 注销USB事件广播监听器
-        if(mUSBManager != null){
-            mUSBManager.unregisterUSB();
+        if(mMediaStream != null){
+            mMediaStream.unregisterUSB();
         }
         // 暂停Camera预览
         if(mUVCCameraView != null){
@@ -204,8 +172,6 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
             handler.removeCallbacksAndMessages(null);
         }
         boolean isStreaming = mMediaStream != null && mMediaStream.isStreaming();
-        mMediaStream.stopPreview();
-        mMediaStream.destroyCamera();
         if (isStreaming && PreferenceManager.getDefaultSharedPreferences(StreamActivity.this)
                 .getBoolean("key_enable_background_camera", true)) {
             // active background streaming
@@ -213,8 +179,6 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
             Toast.makeText(StreamActivity.this, "正在后台采集并上传。", Toast.LENGTH_SHORT).show();
             mService.activePreview();
         } else {
-            mMediaStream.stopStream();
-            mMediaStream.release();
             mMediaStream = null;
 
             stopService(new Intent(this, BackgroundCameraService.class));
@@ -234,29 +198,14 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
     protected void onDestroy() {
         BUS.unregister(this);
         // 释放资源
-        if(mUSBManager != null){
-            mUSBManager.release();
+        if(mMediaStream != null){
+            mMediaStream.release();
         }
         super.onDestroy();
     }
 
 
     private void goonWithPermissionGranted() {
-        spnResolution = (Spinner) findViewById(R.id.spn_resolution);
-        streamStat = (TextView) findViewById(R.id.stream_stat);
-        streamStat.setText(null);
-        txtStatus = (TextView) findViewById(R.id.txt_stream_status);
-        btnSwitch = (Button) findViewById(R.id.btn_switch);
-        btnSwitch.setOnClickListener(this);
-        btnSetting = (Button) findViewById(R.id.btn_setting);
-        btnSetting.setOnClickListener(this);
-        btnSwitchCemera = (ImageButton) findViewById(R.id.btn_switchCamera);
-        btnSwitchCemera.setOnClickListener(this);
-        txtStreamAddress = (TextView) findViewById(R.id.txt_stream_address);
-        textRecordTick = (TextView) findViewById(R.id.tv_start_record);
-        mUVCCameraView = (UVCCameraTextureView) findViewById(R.id.sv_surfaceview);
-        mUSBManager.init(this, mUVCCameraView, listener);
-
         mUVCCameraView.setSurfaceTextureListener(this);
         mUVCCameraView.setOnClickListener(this);
 
@@ -302,9 +251,10 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
             @Override
             public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
                 mService = ((BackgroundCameraService.LocalBinder) iBinder).getService();
+                mServiceConnected = true;
 //                mMediaStream = EasyApplication.sMS;
 
-                if (mUVCCameraView.isAvailable()) {
+                if (mUVCCameraView.isAvailable() && isUsbDeviceConnected) {
                     goonWithAvailableTexture(mUVCCameraView.getSurfaceTexture());
                 }
 
@@ -312,6 +262,7 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
 
             @Override
             public void onServiceDisconnected(ComponentName componentName) {
+                mServiceConnected = false;
             }
         };
         bindService(new Intent(this, BackgroundCameraService.class), conn, 0);
@@ -507,7 +458,7 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
     private void startCamera() {
         mMediaStream.updateResolution(width, height);
         mMediaStream.setDgree(getDgree());
-        mMediaStream.createCamera();
+        mMediaStream.openCamera();
         mMediaStream.startPreview();
 
         if (mMediaStream.isStreaming()) {
@@ -654,13 +605,13 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
                 startActivity(new Intent(this, SettingActivity.class));
                 break;
             case R.id.sv_surfaceview:
-                try {
-                    mMediaStream.getCamera().autoFocus(null);
-                } catch (Exception e) {
-                }
+//                try {
+//                    mMediaStream.getCamera().autoFocus(null);
+//                } catch (Exception e) {
+//                }
                 break;
             case R.id.btn_switchCamera: {
-                mMediaStream.switchCamera();
+//                mMediaStream.switchCamera();
             }
             break;
         }
@@ -739,7 +690,7 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
 
     @Override
     public void onSurfaceTextureAvailable(final SurfaceTexture surface, int width, int height) {
-        if (mService != null) {
+        if (mService != null && isUsbDeviceConnected) {
             goonWithAvailableTexture(surface);
         }
     }
@@ -769,7 +720,7 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
                 sendMessage("推流中");
             }
         } else {
-            ms = new UvcMediaStream(getApplicationContext(), surface, PreferenceManager.getDefaultSharedPreferences(this)
+            ms = new UvcMediaStream(this, mUVCCameraView, listener, PreferenceManager.getDefaultSharedPreferences(this)
                     .getBoolean(EasyApplication.KEY_ENABLE_VIDEO, true));
             ms.setRecordPath(easyPusher.getPath());
             mMediaStream = ms;
@@ -779,6 +730,40 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
 
         initSpninner();
     }
+
+    /**
+     * USB设备事件监听器
+     * */
+    private UvcMediaStream.OnMyDevConnectListener listener = new UvcMediaStream.OnMyDevConnectListener() {
+        // 插入USB设备
+        @Override
+        public void onAttachDev(UsbDevice device) {
+            Log.d("Test","onAttachDev");
+            isUsbDeviceConnected = true;
+            if (mService != null && mUVCCameraView.isAvailable()) {
+                goonWithAvailableTexture(mUVCCameraView.getSurfaceTexture());
+            }
+        }
+
+        // 拔出USB设备
+        @Override
+        public void onDettachDev(UsbDevice device) {
+            Log.d("Test","onDettachDev");
+            isUsbDeviceConnected = false;
+        }
+
+        // 连接USB设备成功
+        @Override
+        public void onConnectDev(UsbDevice device) {
+            Log.d("Test","onConnectDev");
+        }
+
+        // 与USB设备断开连接
+        @Override
+        public void onDisConnectDev(UsbDevice device) {
+            Log.d("Test","onDisConnectDev");
+        }
+    };
 
     @Override
     public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {

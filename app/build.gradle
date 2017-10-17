@@ -46,6 +46,15 @@ android {
         }
     }
 
+    dexOptions {
+        incremental true //如果开启multi-dex, 此句无效
+        preDexLibraries true
+        javaMaxHeapSize "4g" //最主要是这句, 不过改成8g没有更显著的提升
+//  jumboMode true
+//  threadCount 8 //gradle输就输在了并行上, 都是串行, 增加线程数没鸟用
+//  maxProcessCount 8 //com.android.tools.build:gradle:2.0.0
+    }
+
     android.applicationVariants.all { variant ->
         def file = variant.outputs[0].outputFile
         variant.outputs[0].outputFile = new File(file.parent, file.name.replace(".apk", "-" + defaultConfig.versionCode + "-" + defaultConfig.versionName+".apk"))
