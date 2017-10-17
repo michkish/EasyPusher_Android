@@ -17,6 +17,7 @@ import android.view.TextureView;
 import android.view.WindowManager;
 
 import org.easydarwin.push.MediaStream;
+import org.easydarwin.push.UvcMediaStream;
 
 public class BackgroundCameraService extends Service implements TextureView.SurfaceTextureListener {
     private static final int NOTIFICATION_ID = 1;
@@ -30,7 +31,7 @@ public class BackgroundCameraService extends Service implements TextureView.Surf
     private TextureView mOutComeVideoView;
     private WindowManager mWindowManager;
     private BroadcastReceiver mReceiver = null;
-    private MediaStream mMediaStream;
+    private UvcMediaStream mMediaStream;
 
 
     // Binder given to clients
@@ -63,11 +64,11 @@ public class BackgroundCameraService extends Service implements TextureView.Surf
 
     }
 
-    public MediaStream getMediaStream() {
+    public UvcMediaStream getMediaStream() {
         return mMediaStream;
     }
 
-    public void setMediaStream(MediaStream ms) {
+    public void setMediaStream(UvcMediaStream ms) {
         mMediaStream = ms;
     }
 
