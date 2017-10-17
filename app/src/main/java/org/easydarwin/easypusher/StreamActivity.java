@@ -616,10 +616,6 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
         }
     }
 
-    public void onAbut(View view) {
-        startActivity(new Intent(this, AboutActivity.class));
-    }
-
     @Override
     public void onSurfaceTextureAvailable(final SurfaceTexture surface, int width, int height) {
         if (mService != null) {

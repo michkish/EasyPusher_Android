@@ -32,10 +32,6 @@
         <activity
             android:name=".SettingActivity"
             android:screenOrientation="portrait"></activity>
-        <activity
-            android:name=".SplashActivity"
-            android:screenOrientation="portrait">
-        </activity>
 
         <service
             android:name=".RecordService"
