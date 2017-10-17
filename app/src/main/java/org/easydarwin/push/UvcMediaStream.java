@@ -72,7 +72,7 @@ public class UvcMediaStream {
     private TxtOverlay overlay;
     private EasyMuxer mMuxer;
     private final HandlerThread mCameraThread;
-    private final Handler mCameraHandler;
+    private final Handler mCameraThreadHandler;
     private EncoderDebugger debugger;
     private int previewFormat;
 
@@ -97,7 +97,7 @@ public class UvcMediaStream {
             }
         };
         mCameraThread.start();
-        mCameraHandler = new Handler(mCameraThread.getLooper()) {
+        mCameraThreadHandler = new Handler(mCameraThread.getLooper()) {
             @Override
             public void handleMessage(Message msg) {
                 super.handleMessage(msg);
@@ -163,7 +163,7 @@ public class UvcMediaStream {
         if (mCamera == null) return;
         stopPreview();
         destroyCamera();
-        mCameraHandler.post(new Runnable() {
+        mCameraThreadHandler.post(new Runnable() {
             @Override
             public void run() {
                 width = w;
@@ -190,7 +190,7 @@ public class UvcMediaStream {
     public void createCamera() {
 
         if (Thread.currentThread() != mCameraThread) {
-            mCameraHandler.post(new Runnable() {
+            mCameraThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT);
@@ -305,7 +305,7 @@ public class UvcMediaStream {
 
     public synchronized void startRecord() {
         if (Thread.currentThread() != mCameraThread) {
-            mCameraHandler.post(new Runnable() {
+            mCameraThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     startRecord();
@@ -325,7 +325,7 @@ public class UvcMediaStream {
 
     public synchronized void stopRecord() {
         if (Thread.currentThread() != mCameraThread) {
-            mCameraHandler.post(new Runnable() {
+            mCameraThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     stopRecord();
@@ -348,7 +348,7 @@ public class UvcMediaStream {
      */
     public synchronized void startPreview() {
         if (Thread.currentThread() != mCameraThread) {
-            mCameraHandler.post(new Runnable() {
+            mCameraThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     startPreview();
@@ -472,7 +472,7 @@ public class UvcMediaStream {
      */
     public synchronized void stopPreview() {
         if (Thread.currentThread() != mCameraThread) {
-            mCameraHandler.post(new Runnable() {
+            mCameraThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     stopPreview();
@@ -513,8 +513,8 @@ public class UvcMediaStream {
      * 切换前后摄像头
      */
     public void switchCamera() {
-        if (mCameraHandler.hasMessages(SWITCH_CAMERA)) return;
-        mCameraHandler.sendEmptyMessage(SWITCH_CAMERA);
+        if (mCameraThreadHandler.hasMessages(SWITCH_CAMERA)) return;
+        mCameraThreadHandler.sendEmptyMessage(SWITCH_CAMERA);
     }
 
     private Runnable switchCameraTask = new Runnable() {
@@ -566,7 +566,7 @@ public class UvcMediaStream {
     public synchronized void destroyCamera() {
 
         if (Thread.currentThread() != mCameraThread) {
-            mCameraHandler.post(new Runnable() {
+            mCameraThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     destroyCamera();
@@ -608,7 +608,7 @@ public class UvcMediaStream {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
             mCameraThread.quitSafely();
         } else {
-            if (!mCameraHandler.post(new Runnable() {
+            if (!mCameraThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     mCameraThread.quit();
