@@ -63,7 +63,7 @@ import java.util.jar.Manifest;
 import static org.easydarwin.easypusher.EasyApplication.BUS;
 import static org.easydarwin.update.UpdateMgr.MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE;
 
-public class StreamActivity extends AppCompatActivity implements View.OnClickListener, TextureView.SurfaceTextureListener {
+public class StreamActivity extends AppCompatActivity implements View.OnClickListener, CameraViewInterface.Callback {
 
     static final String TAG = "EasyPusher";
     public static final int REQUEST_MEDIA_PROJECTION = 1002;
@@ -177,10 +177,14 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
             // active background streaming
 
             Toast.makeText(StreamActivity.this, "正在后台采集并上传。", Toast.LENGTH_SHORT).show();
-            mService.activePreview();
+//            mService.activePreview();
         } else {
+            if (mMediaStream != null) {
+                mMediaStream.unregisterUSB();
+                mMediaStream.release();
+            }
             mMediaStream = null;
-
+            showShortMsg("stopService BackgroundCameraService");
             stopService(new Intent(this, BackgroundCameraService.class));
         }
         super.onPause();
@@ -206,7 +210,7 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
 
 
     private void goonWithPermissionGranted() {
-        mUVCCameraView.setSurfaceTextureListener(this);
+        mUVCCameraView.setCallback(this);
         mUVCCameraView.setOnClickListener(this);
 
 
@@ -254,7 +258,8 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
                 mServiceConnected = true;
 //                mMediaStream = EasyApplication.sMS;
 
-                if (mUVCCameraView.isAvailable() && isUsbDeviceConnected) {
+                if (mUVCCameraView.isAvailable() && !isUsbDeviceConnected) {
+                    showShortMsg("onServiceConnected");
                     goonWithAvailableTexture(mUVCCameraView.getSurfaceTexture());
                 }
 
@@ -689,13 +694,23 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
     }
 
     @Override
-    public void onSurfaceTextureAvailable(final SurfaceTexture surface, int width, int height) {
-        if (mService != null && isUsbDeviceConnected) {
-            goonWithAvailableTexture(surface);
+    public void onSurfaceCreated(CameraViewInterface view, Surface surface) {
+        if (mService != null) {
+            showShortMsg("onSurfaceCreated");
+            goonWithAvailableTexture(view.getSurfaceTexture());
         }
     }
 
+    @Override
+    public void onSurfaceChanged(CameraViewInterface view, Surface surface, int width, int height) {
+    }
+
+    @Override
+    public void onSurfaceDestroy(CameraViewInterface view, Surface surface) {
+    }
+
     private void goonWithAvailableTexture(SurfaceTexture surface) {
+        showShortMsg("goonWithAvailableTexture");
         final File easyPusher = new File(Environment.getExternalStorageDirectory() + (EasyApplication.isRTMP() ? "/EasyRTMP"
                 : "/EasyPusher"));
         easyPusher.mkdir();
@@ -704,28 +719,16 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
             ms.stopPreview();
             mService.inActivePreview();
             ms.setSurfaceTexture(surface);
-            ms.startPreview();
             mMediaStream = ms;
-
-            if (ms.isStreaming()) {
-                String ip = EasyApplication.getEasyApplication().getIp();
-                String port = EasyApplication.getEasyApplication().getPort();
-                String id = EasyApplication.getEasyApplication().getId();
-                String url = String.format("rtsp://%s:%s/%s.sdp", ip, port, id);
-                if (EasyApplication.isRTMP()) {
-                    url = EasyApplication.getEasyApplication().getUrl();
-                }
-                btnSwitch.setText("停止");
-                txtStreamAddress.setText(url);
-                sendMessage("推流中");
-            }
         } else {
-            ms = new UvcMediaStream(this, mUVCCameraView, listener, PreferenceManager.getDefaultSharedPreferences(this)
-                    .getBoolean(EasyApplication.KEY_ENABLE_VIDEO, true));
+            ms = new UvcMediaStream(this, mUVCCameraView, listener);
             ms.setRecordPath(easyPusher.getPath());
             mMediaStream = ms;
-            startCamera();
             mService.setMediaStream(ms);
+        }
+
+        if (!mMediaStream.isUsbMonitroRegisted()) {
+            mMediaStream.registerUSB();
         }
 
         initSpninner();
@@ -739,46 +742,47 @@ public class StreamActivity extends AppCompatActivity implements View.OnClickLis
         @Override
         public void onAttachDev(UsbDevice device) {
             Log.d("Test","onAttachDev");
-            isUsbDeviceConnected = true;
-            if (mService != null && mUVCCameraView.isAvailable()) {
-                goonWithAvailableTexture(mUVCCameraView.getSurfaceTexture());
-            }
         }
 
         // 拔出USB设备
         @Override
         public void onDettachDev(UsbDevice device) {
             Log.d("Test","onDettachDev");
-            isUsbDeviceConnected = false;
         }
 
         // 连接USB设备成功
         @Override
         public void onConnectDev(UsbDevice device) {
             Log.d("Test","onConnectDev");
+            showShortMsg("onConnectDev");
+            isUsbDeviceConnected = true;
+            if (mService != null && mUVCCameraView.isAvailable()) {
+                if (mMediaStream != null) {    // switch from background to front
+                    mService.setMediaStream(mMediaStream);
+
+                    if (mMediaStream.isStreaming()) {
+                        String ip = EasyApplication.getEasyApplication().getIp();
+                        String port = EasyApplication.getEasyApplication().getPort();
+                        String id = EasyApplication.getEasyApplication().getId();
+                        String url = String.format("rtsp://%s:%s/%s.sdp", ip, port, id);
+                        if (EasyApplication.isRTMP()) {
+                            url = EasyApplication.getEasyApplication().getUrl();
+                        }
+                        btnSwitch.setText("停止");
+                        txtStreamAddress.setText(url);
+                        sendMessage("推流中");
+                    }
+                }
+            }
         }
 
         // 与USB设备断开连接
         @Override
         public void onDisConnectDev(UsbDevice device) {
             Log.d("Test","onDisConnectDev");
+            isUsbDeviceConnected = false;
         }
     };
-
-    @Override
-    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-
-    }
-
-    @Override
-    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-        return true;
-    }
-
-    @Override
-    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-
-    }
 
     public void onRecord(View view) {
         ImageButton ib = (ImageButton) view;

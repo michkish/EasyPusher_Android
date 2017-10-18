@@ -19,7 +19,7 @@ import android.view.WindowManager;
 import org.easydarwin.push.MediaStream;
 import org.easydarwin.push.UvcMediaStream;
 
-public class BackgroundCameraService extends Service implements TextureView.SurfaceTextureListener {
+public class BackgroundCameraService extends Service {
     private static final int NOTIFICATION_ID = 1;
 
     private static final String TAG = BackgroundCameraService.class.getSimpleName();
@@ -39,31 +39,6 @@ public class BackgroundCameraService extends Service implements TextureView.Surf
     private SurfaceTexture mTexture;
     private boolean mPenddingStartPreview;
 
-    @Override
-    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-        mTexture = surface;
-        if (mPenddingStartPreview){
-            mMediaStream.setSurfaceTexture(mTexture);
-            mMediaStream.startPreview();
-        }
-    }
-
-    @Override
-    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-
-    }
-
-    @Override
-    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-        mTexture = null;
-        return true;
-    }
-
-    @Override
-    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-
-    }
-
     public UvcMediaStream getMediaStream() {
         return mMediaStream;
     }
@@ -76,8 +51,8 @@ public class BackgroundCameraService extends Service implements TextureView.Surf
         mMediaStream.stopPreview();
         if (mTexture != null){
             backGroundNotificate();
-            mMediaStream.setSurfaceTexture(mTexture);
-            mMediaStream.startPreview();
+//            mMediaStream.setSurfaceTexture(mTexture);
+//            mMediaStream.startPreview();
         }else{
             mPenddingStartPreview = true;
         }
@@ -133,7 +108,6 @@ public class BackgroundCameraService extends Service implements TextureView.Surf
                 WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH, PixelFormat.TRANSLUCENT);
         layoutParams.gravity = Gravity.LEFT | Gravity.TOP;
         mWindowManager.addView(mOutComeVideoView, layoutParams);
-        mOutComeVideoView.setSurfaceTextureListener(this);
 
 
     }

@@ -23,6 +23,7 @@ import com.serenegiant.usb.USBMonitor;
 import com.serenegiant.usb.common.AbstractUVCCameraHandler;
 import com.serenegiant.usb.common.UVCCameraHandler;
 import com.serenegiant.usb.widget.CameraViewInterface;
+import com.serenegiant.usb.widget.UVCCameraTextureView;
 
 import org.easydarwin.audio.AudioStream;
 import org.easydarwin.bus.SupportResolution;
@@ -62,7 +63,6 @@ import static org.easydarwin.easypusher.EasyApplication.BUS;
 public class UvcMediaStream {
     private static final boolean VERBOSE = BuildConfig.DEBUG;
     private static final int SWITCH_CAMERA = 11;
-    private final boolean enanleVideo;
     Pusher mEasyPusher;
     static final String TAG = "EasyPusher";
     int width = 640, height = 480;
@@ -81,38 +81,33 @@ public class UvcMediaStream {
     private VideoConsumer mVC;
     private TxtOverlay overlay;
     private EasyMuxer mMuxer;
-    private final HandlerThread mCameraThread;
-    private final Handler mCameraThreadHandler;
+//    private final HandlerThread mCameraThread;
+//    private final Handler mCameraThreadHandler;
     private EncoderDebugger debugger;
     private int previewFormat;
 
-    private CameraViewInterface cameraView;
+    private UVCCameraTextureView cameraView;
 
-    public UvcMediaStream(Activity activity, final CameraViewInterface cameraView, final OnMyDevConnectListener listener) {
-        this(activity, cameraView, listener, true);
-    }
-
-    public UvcMediaStream(Activity activity, final CameraViewInterface cameraView, final OnMyDevConnectListener listener, boolean enableVideo) {
+    public UvcMediaStream(Activity activity, UVCCameraTextureView cameraView, final OnMyDevConnectListener listener) {
         mApplicationContext = activity.getApplicationContext();
         mSurfaceHolderRef = new WeakReference(cameraView.getSurfaceTexture());
-        init(activity, cameraView, listener);
+        this.cameraView = cameraView;
+        init(activity, this.cameraView, listener);
         if (EasyApplication.isRTMP())
             mEasyPusher = new EasyRTMP();
         else mEasyPusher = new EasyPusher();
-        mCameraThread = new HandlerThread("CAMERA"){
-            public void run(){
-                try{
-                    super.run();
-                } finally {
-                    stopStream();
-                    closeCamera();
-                }
-            }
-        };
-        this.cameraView = cameraView;
-        mCameraThread.start();
-        mCameraThreadHandler = new Handler(mCameraThread.getLooper());
-        this.enanleVideo = enableVideo;
+//        mCameraThread = new HandlerThread("CAMERA"){
+//            public void run(){
+//                try{
+//                    super.run();
+//                } finally {
+//                    stopStream();
+//                    closeCamera();
+//                }
+//            }
+//        };
+//        mCameraThread.start();
+//        mCameraThreadHandler = new Handler(mCameraThread.getLooper());
 
 //        if (enableVideo) {
 //            previewCallback = new Camera.PreviewCallback() {
@@ -169,13 +164,13 @@ public class UvcMediaStream {
     public void updateResolution(final int w, final int h) {
         stopPreview();
         closeCamera();
-        mCameraThreadHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                width = w;
-                height = h;
-            }
-        });
+//        mCameraThreadHandler.post(new Runnable() {
+//            @Override
+//            public void run() {
+//                width = w;
+//                height = h;
+//            }
+//        });
         openCamera();
         startPreview();
     }
@@ -228,15 +223,15 @@ public class UvcMediaStream {
     }
 
     public synchronized void startRecord() {
-        if (Thread.currentThread() != mCameraThread) {
-            mCameraThreadHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    startRecord();
-                }
-            });
-            return;
-        }
+//        if (Thread.currentThread() != mCameraThread) {
+//            mCameraThreadHandler.post(new Runnable() {
+//                @Override
+//                public void run() {
+//                    startRecord();
+//                }
+//            });
+//            return;
+//        }
         long millis = PreferenceManager.getDefaultSharedPreferences(mApplicationContext).getInt("record_interval", 300000);
         mMuxer = new EasyMuxer(new File(recordPath, new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date())).toString(), millis);
         if (mVC == null || audioStream == null) {
@@ -248,15 +243,15 @@ public class UvcMediaStream {
 
 
     public synchronized void stopRecord() {
-        if (Thread.currentThread() != mCameraThread) {
-            mCameraThreadHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    stopRecord();
-                }
-            });
-            return;
-        }
+//        if (Thread.currentThread() != mCameraThread) {
+//            mCameraThreadHandler.post(new Runnable() {
+//                @Override
+//                public void run() {
+//                    stopRecord();
+//                }
+//            });
+//            return;
+//        }
         if (mVC == null || audioStream == null) {
 //            nothing
         } else {
@@ -271,21 +266,36 @@ public class UvcMediaStream {
      * 开启预览
      */
     public synchronized void startPreview() {
-        if (Thread.currentThread() != mCameraThread) {
-            mCameraThreadHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    startPreview();
-                }
-            });
-            return;
+//        if (Thread.currentThread() != mCameraThread) {
+//            mCameraThreadHandler.post(new Runnable() {
+//                @Override
+//                public void run() {
+//                    startPreview();
+//                }
+//            });
+//            return;
+//        }
+        if (!cameraView.isAvailable()) {
+            throw new RuntimeException("texture view is not available");
         }
-        SurfaceTexture st = this.cameraView.getSurfaceTexture();
+
+        SurfaceTexture st = cameraView.getSurfaceTexture();
+        if (st == null) {
+            throw new NullPointerException("SurfaceTexture should not be null");
+        }
+
         if (mCameraHandler != null) {
-            mCameraHandler.startPreview(st);
-            BUS.post(new SupportResolution());
+            Log.d(TAG, "start camera Preview");
+            showShortMsg("start camera Preview");
+            mCameraHandler.startPreview(cameraView.getSurfaceTexture());
 
             boolean rotate = false;
+            if (Util.getSupportResolution(mApplicationContext).size() == 0) {
+                StringBuilder stringBuilder = new StringBuilder();
+                stringBuilder.append(PREVIEW_WIDTH + "x" + PREVIEW_HEIGHT).append(";");
+                Util.saveSupportResolution(mApplicationContext, stringBuilder.toString());
+            }
+            BUS.post(new SupportResolution());
 
             overlay = new TxtOverlay(mApplicationContext);
             try {
@@ -307,6 +317,7 @@ public class UvcMediaStream {
                 ex.printStackTrace();
             }
         }
+        Log.d(TAG, "start Audio Record");
         audioStream = new AudioStream(mEasyPusher);
         audioStream.startRecord();
     }
@@ -347,15 +358,15 @@ public class UvcMediaStream {
      * 停止预览
      */
     public synchronized void stopPreview() {
-        if (Thread.currentThread() != mCameraThread) {
-            mCameraThreadHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    stopPreview();
-                }
-            });
-            return;
-        }
+//        if (Thread.currentThread() != mCameraThread) {
+//            mCameraThreadHandler.post(new Runnable() {
+//                @Override
+//                public void run() {
+//                    stopPreview();
+//                }
+//            });
+//            return;
+//        }
         if(mCameraHandler != null){
             mCameraHandler.stopPreview();
             Log.i(TAG,"StopPreview");
@@ -437,10 +448,12 @@ public class UvcMediaStream {
      *  cameraView Camera要渲染的Surface
      *  listener USB设备检测与连接状态事件监听器
      * */
-    private void init(Activity activity, final CameraViewInterface cameraView, final OnMyDevConnectListener listener){
+    private void init(Activity activity, CameraViewInterface cameraView, final OnMyDevConnectListener listener){
         if(cameraView == null)
             throw new NullPointerException("CameraViewInterface cannot be null!");
         mContext = activity.getApplicationContext();
+
+        showShortMsg("Usb Manager init");
 
         mUSBMonitor = new USBMonitor(activity.getApplicationContext(), new USBMonitor.OnDeviceConnectListener() {
             // 当检测到USB设备，被回调
@@ -466,8 +479,6 @@ public class UvcMediaStream {
                 if(isCameraRequest){
                     // 关闭摄像头
                     isCameraRequest = false;
-                    stopPreview();
-                    closeCamera();
                     showShortMsg(device.getDeviceName()+"已拨出");
                 }
                 if(listener != null){
@@ -478,6 +489,7 @@ public class UvcMediaStream {
             // 当连接到USB Camera时，被回调
             @Override
             public void onConnect(UsbDevice device, USBMonitor.UsbControlBlock ctrlBlock, boolean createNew) {
+                showShortMsg(device.getDeviceName()+"已连接");
                 currentCtrlBlock = ctrlBlock;
                 // 打开摄像头
                 openCamera();
@@ -492,6 +504,7 @@ public class UvcMediaStream {
             @Override
             public void onDisconnect(UsbDevice device, USBMonitor.UsbControlBlock ctrlBlock) {
                 // 关闭摄像头
+                showShortMsg(device.getDeviceName()+"已断开");
                 stopPreview();
                 closeCamera();
                 if(listener != null){
@@ -508,6 +521,14 @@ public class UvcMediaStream {
         cameraView.setAspectRatio(PREVIEW_WIDTH / (float)PREVIEW_HEIGHT);
         mCameraHandler = UVCCameraHandler.createHandler(activity,cameraView,ENCODER_TYPE,
                 PREVIEW_WIDTH,PREVIEW_HEIGHT,PREVIEW_FORMAT);
+    }
+
+    /**
+     * 是否已注册mUSBMonitor
+     * @return
+     */
+    public boolean isUsbMonitroRegisted() {
+        return mUSBMonitor.isRegistered();
     }
 
     /**
@@ -612,23 +633,23 @@ public class UvcMediaStream {
             mUSBMonitor = null;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-            mCameraThread.quitSafely();
-        } else {
-            if (!mCameraThreadHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    mCameraThread.quit();
-                }
-            })) {
-                mCameraThread.quit();
-            }
-        }
-        try {
-            mCameraThread.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+//            mCameraThread.quitSafely();
+//        } else {
+//            if (!mCameraThreadHandler.post(new Runnable() {
+//                @Override
+//                public void run() {
+//                    mCameraThread.quit();
+//                }
+//            })) {
+//                mCameraThread.quit();
+//            }
+//        }
+//        try {
+//            mCameraThread.join();
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
     }
 
     public USBMonitor getUSBMonitor() {
@@ -637,15 +658,15 @@ public class UvcMediaStream {
 
 
     public void closeCamera() {
-        if (Thread.currentThread() != mCameraThread) {
-            mCameraThreadHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    closeCamera();
-                }
-            });
-            return;
-        }
+//        if (Thread.currentThread() != mCameraThread) {
+//            mCameraThreadHandler.post(new Runnable() {
+//                @Override
+//                public void run() {
+//                    closeCamera();
+//                }
+//            });
+//            return;
+//        }
         if(mCameraHandler != null){
             mCameraHandler.close();
         }
@@ -656,19 +677,16 @@ public class UvcMediaStream {
     }
 
     public void openCamera() {
-        if (Thread.currentThread() != mCameraThread) {
-            mCameraThreadHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT);
-                    openCamera();
-                }
-            });
-            return;
-        }
-        if (!enanleVideo) {
-            return;
-        }
+//        if (Thread.currentThread() != mCameraThread) {
+//            mCameraThreadHandler.post(new Runnable() {
+//                @Override
+//                public void run() {
+//                    Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT);
+//                    openCamera();
+//                }
+//            });
+//            return;
+//        }
         if(mCameraHandler != null){
             mCameraHandler.open(currentCtrlBlock);
         }
